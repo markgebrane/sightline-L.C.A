@@ -93,3 +93,88 @@ The frontend (React/Vite, deployed on Vercel) comes next — it will call
 - Auth/RBAC (JWT, officer roles) is the natural next backend layer, added
   deliberately rather than bundled in here.
 - All borrower data in the demo is synthetic.
+
+
+An SME credit assessment copilot for loan underwriting. Sightline reads a loan
+application's supporting documents and returns a scored credit memo across nine
+risk factors, so that two analysts reviewing the same borrower work from the same
+framework rather than from their own spreadsheets.
+
+## How it works
+
+Documents go in. An extraction pass pulls the structured financial inputs out of
+them, and a second pass scores the borrower against nine factors and drafts the
+memo. The front end renders the decision, the score and the factor breakdown.
+
+The API contract is generated from the backend schemas rather than written by
+hand, so the two halves of the application cannot drift apart silently.
+
+## Stack
+
+| Layer | Technology |
+| --- | --- |
+| Backend | FastAPI, Python 3.11 |
+| Frontend | React + Vite, TypeScript |
+| Database | PostgreSQL in production, SQLite fallback locally |
+| Extraction and analysis | Anthropic API |
+| Types | OpenAPI generation, backend to frontend |
+| Tests | pytest |
+| Deployment | Railway |
+
+## Layout
+
+Backend and frontend live in the same repository.
+
+    app/                    FastAPI backend
+    sightline-frontend/     React frontend
+    requirements.txt
+    runtime.txt
+    Procfile
+
+## Running locally
+
+Requires Node 18+, Python 3.11+ and an Anthropic API key.
+
+**Backend**, from the repository root:
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    cp .env.example .env        # set ANTHROPIC_API_KEY and CORS_ORIGINS
+    uvicorn app.main:app --port 8000 --reload
+
+`DATABASE_URL` is optional locally — without it the app falls back to SQLite.
+Check `http://localhost:8000/api/health` before going further.
+
+**Frontend**, in a second terminal:
+
+    cd sightline-frontend
+    cp .env.example .env        # VITE_API_BASE=http://localhost:8000
+    npm install
+    npm run dev -- --host
+
+`--host` is required: without it Vite binds to IPv6 only and forwarded ports
+return a 404. `legacy-peer-deps` is set in the committed `.npmrc`, so a plain
+`npm install` is enough.
+
+The app runs at `http://localhost:5173`. Load the sample case and run an analysis
+to confirm the full path end to end — allow 15–30 seconds on a cold start.
+
+## Tests
+
+    pytest test_schemas.py test_local.py
+
+`test_local.py` calls the Anthropic API, so it needs a valid key and costs a few
+cents to run.
+
+## Regenerating API types
+
+With the backend running locally:
+
+    cd sightline-frontend
+    npm run gen:types
+
+## Status
+
+Built July 2026 as sole developer, from requirements through to production
+deployment.
